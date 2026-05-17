@@ -20,11 +20,17 @@ def main() -> None:
     parser.add_argument("--site-id", default=env("SITE_ID", "demo"))
     parser.add_argument("--duration-minutes", type=float, default=env_float("DURATION_MINUTES", 10))
     parser.add_argument("--events-per-minute", type=float, default=env_float("EVENTS_PER_MINUTE", 3))
+    parser.add_argument("--count", type=int, default=env_int("EVENT_COUNT", 0))
+    parser.add_argument("--pause-seconds", type=int, default=env_int("PAUSE_SECONDS", 0))
     parser.add_argument("--session-prefix", default=env("SESSION_PREFIX", "generated"))
     args = parser.parse_args()
 
-    total_events = max(1, round(args.duration_minutes * args.events_per_minute))
-    sleep_seconds = 60 / args.events_per_minute
+    if args.count > 0:
+        total_events = args.count
+        sleep_seconds = 0
+    else:
+        total_events = max(1, round(args.duration_minutes * args.events_per_minute))
+        sleep_seconds = 60 / args.events_per_minute
 
     for index in range(total_events):
         payload = build_event(args.site_id, args.session_prefix, index)
@@ -36,6 +42,10 @@ def main() -> None:
         )
         if index != total_events - 1:
             time.sleep(sleep_seconds)
+
+    if args.pause_seconds > 0:
+        print(f"{datetime.now().isoformat(timespec='seconds')} pausing={args.pause_seconds}s", flush=True)
+        time.sleep(args.pause_seconds)
 
 
 def build_event(site_id: str, session_prefix: str, index: int) -> dict[str, object]:
@@ -69,6 +79,13 @@ def env_float(name: str, default: float) -> float:
     if value is None or value == "":
         return default
     return float(value)
+
+
+def env_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None or value == "":
+        return default
+    return int(value)
 
 
 if __name__ == "__main__":

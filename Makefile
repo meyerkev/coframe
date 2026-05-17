@@ -12,6 +12,7 @@ help:
 	@printf "  make ps      Show Compose service status\n"
 	@printf "  make smoke   Send one event and read aggregates\n"
 	@printf "  make run-10m Generate demo traffic for 10 minutes at 3 events/minute\n"
+	@printf "  make run-100-paused Generate 100 events and pause 60 seconds after\n"
 	@printf "  make clean   Stop the stack and remove all persisted data\n"
 
 up:
@@ -36,6 +37,9 @@ smoke:
 
 run-10m:
 	python3 scripts/generate_events.py
+
+run-100-paused:
+	EVENT_COUNT=100 PAUSE_SECONDS=60 python3 scripts/generate_events.py
 
 clean:
 	$(COMPOSE) down --volumes --remove-orphans
