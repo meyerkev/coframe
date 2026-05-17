@@ -4,11 +4,12 @@ const form = document.querySelector("#site-form");
 const siteInput = document.querySelector("#site-id");
 const pagesBody = document.querySelector("#pages");
 const trend = document.querySelector("#trend");
-const trendAxis = document.querySelector("#trend-axis");
 const experiments = document.querySelector("#experiments");
 const zoomButtons = [...document.querySelectorAll("[data-window]")];
+const bucketButtons = [...document.querySelectorAll("[data-bucket]")];
 
-let trendWindow = 10;
+let trendWindow = 30;
+let bucketMinutes = 1;
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -23,15 +24,23 @@ zoomButtons.forEach((button) => {
   });
 });
 
+bucketButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    bucketMinutes = Number(button.dataset.bucket);
+    bucketButtons.forEach((item) => item.classList.toggle("active", item === button));
+    refresh(siteInput.value.trim() || "demo");
+  });
+});
+
 async function refresh(siteId) {
   const [config, aggregates, trendData] = await Promise.all([
     fetch(`${API_BASE}/config/${encodeURIComponent(siteId)}`).then((response) => response.json()),
     fetch(`${API_BASE}/aggregates?site_id=${encodeURIComponent(siteId)}`).then((response) => response.json()),
-    fetch(`${API_BASE}/trend?site_id=${encodeURIComponent(siteId)}&limit=${trendWindow}`).then((response) => response.json()),
+    fetch(`${API_BASE}/trend?site_id=${encodeURIComponent(siteId)}&limit=${trendWindow}&window_minutes=${bucketMinutes}`).then((response) => response.json()),
   ]);
 
   renderPages(aggregates.pages || []);
-  renderTrend(trendData.points || []);
+  renderTrend(trendData.windows || [], trendData.window_minutes || bucketMinutes);
   renderExperiments(config.active_experiments || []);
 }
 
@@ -56,27 +65,66 @@ function renderPages(pages) {
   }
 }
 
-function renderTrend(points) {
+function renderTrend(windows, windowMinutes) {
   trend.innerHTML = "";
-  trendAxis.innerHTML = "";
-  if (points.length === 0) {
+  const populated = windows.filter((window) => window.p75_lcp_ms !== null);
+  if (populated.length === 0) {
     trend.innerHTML = `<div class="empty">No LCP data yet.</div>`;
     return;
   }
-  const max = Math.max(...points.map((point) => point.lcp_ms), 1);
-  for (const point of points) {
-    const bar = document.createElement("div");
-    bar.className = "bar";
-    bar.style.height = `${Math.max((point.lcp_ms / max) * 100, 4)}%`;
-    bar.title = `${point.page_url}: ${point.lcp_ms} ms at ${formatTimestamp(point.timestamp)}`;
-    trend.append(bar);
-  }
-  const first = points[0];
-  const last = points[points.length - 1];
-  trendAxis.innerHTML = `
-    <span>${escapeHtml(formatTimestamp(first.timestamp))}</span>
-    <span>${points.length} events</span>
-    <span>${escapeHtml(formatTimestamp(last.timestamp))}</span>
+
+  const width = 920;
+  const height = 260;
+  const margin = { top: 14, right: 28, bottom: 44, left: 66 };
+  const chartWidth = width - margin.left - margin.right;
+  const chartHeight = height - margin.top - margin.bottom;
+  const values = populated.map((window) => window.p75_lcp_ms);
+  const maxY = niceMax(Math.max(...values, 1000));
+  const yTicks = [0, maxY / 4, maxY / 2, (maxY * 3) / 4, maxY];
+  const points = windows.map((window, index) => {
+    const x = margin.left + (windows.length === 1 ? chartWidth : (index / (windows.length - 1)) * chartWidth);
+    const y = window.p75_lcp_ms === null ? null : margin.top + chartHeight - (window.p75_lcp_ms / maxY) * chartHeight;
+    return { ...window, x, y };
+  });
+  const xTicks = pickXTicks(points, 4);
+  const linePath = buildLinePath(points);
+  const bucketLabel = `${windowMinutes}m buckets`;
+
+  trend.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="p75 LCP line chart by ${escapeHtml(bucketLabel)}">
+      <g class="grid-lines">
+        ${yTicks.map((tick) => {
+          const y = margin.top + chartHeight - (tick / maxY) * chartHeight;
+          return `<line x1="${margin.left}" x2="${width - margin.right}" y1="${y}" y2="${y}"></line>`;
+        }).join("")}
+      </g>
+      <g class="y-axis">
+        <line x1="${margin.left}" x2="${margin.left}" y1="${margin.top}" y2="${height - margin.bottom}"></line>
+        ${yTicks.map((tick) => {
+          const y = margin.top + chartHeight - (tick / maxY) * chartHeight;
+          return `<text x="${margin.left - 10}" y="${y + 4}" text-anchor="end">${Math.round(tick)}</text>`;
+        }).join("")}
+      </g>
+      <g class="x-axis">
+        <line x1="${margin.left}" x2="${width - margin.right}" y1="${height - margin.bottom}" y2="${height - margin.bottom}"></line>
+        ${xTicks.map((point, index) => {
+          const anchor = index === 0 ? "start" : index === xTicks.length - 1 ? "end" : "middle";
+          return `
+          <text x="${point.x}" y="${height - margin.bottom + 22}" text-anchor="${anchor}">${escapeHtml(formatShortTimestamp(point.window_start))}</text>
+        `;
+        }).join("")}
+      </g>
+      <text class="axis-label y-label" x="18" y="${margin.top + chartHeight / 2}" text-anchor="middle" transform="rotate(-90 18 ${margin.top + chartHeight / 2})">p75 LCP (ms)</text>
+      <text class="axis-label" x="${margin.left + chartWidth / 2}" y="${height - 10}" text-anchor="middle">Time (UTC), ${escapeHtml(bucketLabel)}</text>
+      <path class="line" d="${linePath}"></path>
+      <g class="points">
+        ${points.filter((point) => point.y !== null).map((point) => `
+          <circle cx="${point.x}" cy="${point.y}" r="4">
+            <title>${point.p75_lcp_ms} ms, ${point.event_count} events, ${formatTimestamp(point.window_start)} - ${formatTimestamp(point.window_end)}</title>
+          </circle>
+        `).join("")}
+      </g>
+    </svg>
   `;
 }
 
@@ -104,6 +152,43 @@ function formatTimestamp(value) {
     return value;
   }
   return date.toISOString().replace("T", " ").replace(".000", "").replace("Z", " UTC");
+}
+
+function formatShortTimestamp(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toISOString().slice(11, 16);
+}
+
+function niceMax(value) {
+  const magnitude = 10 ** Math.floor(Math.log10(value));
+  return Math.ceil(value / magnitude) * magnitude;
+}
+
+function pickXTicks(points, maxTicks) {
+  if (points.length <= maxTicks) {
+    return points;
+  }
+  const indexes = new Set();
+  for (let i = 0; i < maxTicks; i += 1) {
+    indexes.add(Math.round((i / (maxTicks - 1)) * (points.length - 1)));
+  }
+  return [...indexes].sort((a, b) => a - b).map((index) => points[index]);
+}
+
+function buildLinePath(points) {
+  const segments = [];
+  let open = false;
+  for (const point of points) {
+    if (point.y === null) {
+      continue;
+    }
+    segments.push(`${open ? "L" : "M"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`);
+    open = true;
+  }
+  return segments.join(" ");
 }
 
 refresh("demo").catch((error) => {

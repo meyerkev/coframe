@@ -38,14 +38,25 @@
       <section class="panel trend-panel">
         <div class="panel-header">
           <h2>LCP Trend</h2>
-          <div class="zoom-controls" aria-label="Chart zoom">
-            <button type="button" data-window="10" class="active">10</button>
-            <button type="button" data-window="25">25</button>
-            <button type="button" data-window="50">50</button>
+          <div class="chart-controls">
+            <div class="control-group" aria-label="Bucket size">
+              <span>Bucket</span>
+              <button type="button" data-bucket="1" class="active">1m</button>
+              <button type="button" data-bucket="5">5m</button>
+              <button type="button" data-bucket="10">10m</button>
+              <button type="button" data-bucket="20">20m</button>
+              <button type="button" data-bucket="30">30m</button>
+              <button type="button" data-bucket="60">60m</button>
+            </div>
+            <div class="control-group" aria-label="Chart range">
+              <span>Range</span>
+              <button type="button" data-window="10">10</button>
+              <button type="button" data-window="30" class="active">30</button>
+              <button type="button" data-window="60">60</button>
+            </div>
           </div>
         </div>
-        <div id="trend" class="trend"></div>
-        <div id="trend-axis" class="trend-axis"></div>
+        <div id="trend" class="trend-chart"></div>
       </section>
 
       <section class="panel">

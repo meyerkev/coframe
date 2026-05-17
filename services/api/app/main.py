@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import sqlite3
 from contextlib import contextmanager
@@ -163,8 +164,12 @@ def list_aggregates(
 @app.get("/trend")
 def list_trend(
     site_id: str = Query(default="demo"),
-    limit: int = Query(default=25, ge=5, le=200),
+    limit: int = Query(default=30, ge=5, le=120),
+    window_minutes: int = Query(default=1),
 ) -> dict[str, Any]:
+    if window_minutes not in {1, 5, 10, 20, 30, 60}:
+        raise HTTPException(status_code=400, detail="window_minutes must be one of 1, 5, 10, 20, 30, 60")
+
     with REQUEST_SECONDS.labels("/trend").time():
         with db() as conn:
             rows = conn.execute(
@@ -172,13 +177,17 @@ def list_trend(
                 SELECT page_url, lcp_ms, timestamp
                 FROM raw_events
                 WHERE site_id = ?
-                ORDER BY timestamp DESC, id DESC
-                LIMIT ?
+                ORDER BY timestamp ASC, id ASC
                 """,
-                (site_id, limit),
+                (site_id,),
             ).fetchall()
-        points = [dict(row) for row in reversed(rows)]
-        return {"site_id": site_id, "limit": limit, "points": points}
+        windows = bucket_trend(rows, limit, window_minutes)
+        return {
+            "site_id": site_id,
+            "limit": limit,
+            "window_minutes": window_minutes,
+            "windows": windows,
+        }
 
 
 @app.get("/metrics")
@@ -190,3 +199,44 @@ def normalize_timestamp(value: datetime) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def bucket_trend(rows: list[sqlite3.Row], limit: int, window_minutes: int) -> list[dict[str, Any]]:
+    if not rows:
+        return []
+
+    window_seconds = window_minutes * 60
+    parsed_rows = [(parse_timestamp(row["timestamp"]), row) for row in rows]
+    latest = max(timestamp for timestamp, _ in parsed_rows)
+    latest_bucket = int(latest.timestamp()) // window_seconds * window_seconds
+    first_bucket = latest_bucket - ((limit - 1) * window_seconds)
+
+    buckets: dict[int, list[int]] = {first_bucket + (index * window_seconds): [] for index in range(limit)}
+    for timestamp, row in parsed_rows:
+        bucket_start = int(timestamp.timestamp()) // window_seconds * window_seconds
+        if bucket_start in buckets:
+            buckets[bucket_start].append(row["lcp_ms"])
+
+    windows = []
+    for bucket_start in sorted(buckets):
+        values = sorted(buckets[bucket_start])
+        p75_lcp_ms = None
+        if values:
+            p75_lcp_ms = values[math.floor((len(values) - 1) * 0.75)]
+        windows.append(
+            {
+                "window_start": format_utc(bucket_start),
+                "window_end": format_utc(bucket_start + window_seconds),
+                "event_count": len(values),
+                "p75_lcp_ms": p75_lcp_ms,
+            }
+        )
+    return windows
+
+
+def parse_timestamp(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+
+
+def format_utc(epoch_seconds: int) -> str:
+    return datetime.fromtimestamp(epoch_seconds, tz=timezone.utc).isoformat().replace("+00:00", "Z")

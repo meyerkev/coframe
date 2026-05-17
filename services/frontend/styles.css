@@ -71,21 +71,36 @@ button {
   margin-bottom: 16px;
 }
 
-.zoom-controls {
+.chart-controls {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: flex-end;
+}
+
+.control-group {
+  align-items: center;
   display: flex;
   gap: 6px;
 }
 
-.zoom-controls button {
+.control-group span {
+  color: #5d6978;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.control-group button {
   background: #ffffff;
   border-color: #b9c2cf;
   color: #1c232b;
   height: 30px;
-  min-width: 38px;
+  min-width: 42px;
   padding: 0 8px;
 }
 
-.zoom-controls button.active {
+.control-group button.active {
   background: #1f6feb;
   border-color: #1f6feb;
   color: #ffffff;
@@ -140,36 +155,44 @@ th {
   font-weight: 700;
 }
 
-.trend {
-  align-items: end;
-  display: flex;
-  gap: 4px;
-  height: 240px;
+.trend-chart {
+  min-height: 280px;
   overflow: hidden;
 }
 
-.bar {
-  background: #2da44e;
-  border-radius: 4px 4px 0 0;
-  flex: 1 1 8px;
-  min-height: 4px;
-  min-width: 4px;
+.trend-chart svg {
+  display: block;
+  height: auto;
+  max-width: 100%;
+  width: 100%;
 }
 
-.trend-axis {
-  color: #5d6978;
-  display: flex;
+.grid-lines line {
+  stroke: #e5e9ef;
+}
+
+.x-axis line,
+.y-axis line {
+  stroke: #94a3b8;
+}
+
+.x-axis text,
+.y-axis text,
+.axis-label {
+  fill: #5d6978;
   font-size: 12px;
-  justify-content: space-between;
-  margin-top: 10px;
-  min-height: 16px;
-  gap: 12px;
 }
 
-.trend-axis span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.line {
+  fill: none;
+  stroke: #2da44e;
+  stroke-width: 3;
+}
+
+.points circle {
+  fill: #2da44e;
+  stroke: #ffffff;
+  stroke-width: 2;
 }
 
 ul {
