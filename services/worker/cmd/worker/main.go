@@ -20,6 +20,7 @@ import (
 type event struct {
 	SiteID    string `json:"site_id"`
 	PageURL   string `json:"page_url"`
+	Experiment string `json:"experiment"`
 	LCPMS     int    `json:"lcp_ms"`
 	Timestamp string `json:"timestamp"`
 	SessionID string `json:"session_id"`
@@ -105,6 +106,7 @@ func initSchema(db *sql.DB) error {
 			timestamp TEXT NOT NULL,
 			session_id TEXT NOT NULL
 		)`,
+		`ALTER TABLE raw_events ADD COLUMN IF NOT EXISTS experiment TEXT`,
 		`
 		CREATE TABLE IF NOT EXISTS page_aggregates (
 			site_id TEXT NOT NULL,
@@ -114,6 +116,16 @@ func initSchema(db *sql.DB) error {
 			last_seen_timestamp TEXT NOT NULL,
 			updated_at TEXT NOT NULL,
 			PRIMARY KEY (site_id, page_url)
+		)`,
+		`
+		CREATE TABLE IF NOT EXISTS experiment_aggregates (
+			site_id TEXT NOT NULL,
+			experiment TEXT NOT NULL,
+			event_count INTEGER NOT NULL,
+			p75_lcp_ms INTEGER NOT NULL,
+			last_seen_timestamp TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			PRIMARY KEY (site_id, experiment)
 		)`,
 	}
 	for _, stmt := range stmts {
@@ -144,8 +156,8 @@ func process(ctx context.Context, db *sql.DB, body []byte) error {
 	defer tx.Rollback()
 
 	_, err = tx.ExecContext(ctx,
-		"INSERT INTO raw_events (site_id, page_url, lcp_ms, timestamp, session_id) VALUES ($1, $2, $3, $4, $5)",
-		ev.SiteID, ev.PageURL, ev.LCPMS, ev.Timestamp, ev.SessionID,
+		"INSERT INTO raw_events (site_id, page_url, experiment, lcp_ms, timestamp, session_id) VALUES ($1, $2, $3, $4, $5, $6)",
+		ev.SiteID, ev.PageURL, nullableExperiment(ev.Experiment), ev.LCPMS, ev.Timestamp, ev.SessionID,
 	)
 	if err != nil {
 		return err
@@ -173,6 +185,12 @@ func process(ctx context.Context, db *sql.DB, body []byte) error {
 	if err != nil {
 		return err
 	}
+
+	if ev.Experiment != "" {
+		if err := updateExperimentAggregate(ctx, tx, ev.SiteID, ev.Experiment); err != nil {
+			return err
+		}
+	}
 	return tx.Commit()
 }
 
@@ -195,6 +213,56 @@ func lcpValues(ctx context.Context, tx *sql.Tx, siteID string, pageURL string) (
 		values = append(values, value)
 	}
 	return values, rows.Err()
+}
+
+func updateExperimentAggregate(ctx context.Context, tx *sql.Tx, siteID string, experiment string) error {
+	values, err := experimentValues(ctx, tx, siteID, experiment)
+	if err != nil {
+		return err
+	}
+	p75 := percentile(values, 0.75)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO experiment_aggregates
+			(site_id, experiment, event_count, p75_lcp_ms, last_seen_timestamp, updated_at)
+		SELECT site_id, experiment, COUNT(*), $1, MAX(timestamp), $2
+		FROM raw_events
+		WHERE site_id = $3 AND experiment = $4
+		GROUP BY site_id, experiment
+		ON CONFLICT(site_id, experiment) DO UPDATE SET
+			event_count = excluded.event_count,
+			p75_lcp_ms = excluded.p75_lcp_ms,
+			last_seen_timestamp = excluded.last_seen_timestamp,
+			updated_at = excluded.updated_at
+	`, p75, time.Now().UTC().Format(time.RFC3339), siteID, experiment)
+	return err
+}
+
+func experimentValues(ctx context.Context, tx *sql.Tx, siteID string, experiment string) ([]int, error) {
+	rows, err := tx.QueryContext(ctx,
+		"SELECT lcp_ms FROM raw_events WHERE site_id = $1 AND experiment = $2 ORDER BY lcp_ms ASC",
+		siteID, experiment,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var values []int
+	for rows.Next() {
+		var value int
+		if err := rows.Scan(&value); err != nil {
+			return nil, err
+		}
+		values = append(values, value)
+	}
+	return values, rows.Err()
+}
+
+func nullableExperiment(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
 }
 
 func percentile(values []int, p float64) int {

@@ -6,7 +6,7 @@ The API is a Python FastAPI service. It accepts SDK performance events on `POST 
 
 The worker is a Go background process. It blocks on a Redis list, decodes page performance events, persists raw events to Postgres, and refreshes per `(site_id, page_url)` aggregates with event count, p75 LCP, and last-seen timestamp. Its durable state lives in Postgres.
 
-The frontend is a static HTML/CSS/JS dashboard served by Nginx. It reads config and aggregate data from the API and renders top pages by event volume, a compact p75 LCP chart, and active experiments. It has no server-side state.
+The frontend is a static HTML/CSS/JS dashboard served by Nginx. It reads config and aggregate data from the API and renders top pages by event volume, a compact p75 LCP chart, and experiment latency grouped by experiment. It has no server-side state.
 
 ## Stack Choices
 

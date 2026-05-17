@@ -43,6 +43,7 @@ class PerformanceEvent(BaseModel):
     lcp_ms: int = Field(ge=0, le=120_000)
     timestamp: datetime
     session_id: str = Field(min_length=1, max_length=120)
+    experiment: str | None = Field(default=None, max_length=80)
 
 
 class SiteConfig(BaseModel):
@@ -54,6 +55,15 @@ class SiteConfig(BaseModel):
 class QueueStatus(BaseModel):
     queue_name: str
     message_count: int
+
+
+class ExperimentAggregate(BaseModel):
+    site_id: str
+    experiment: str
+    event_count: int
+    p75_lcp_ms: int
+    last_seen_timestamp: str | None
+    updated_at: str | None
 
 
 @contextmanager
@@ -99,6 +109,20 @@ def init_db() -> None:
                 lcp_ms INTEGER NOT NULL,
                 timestamp TEXT NOT NULL,
                 session_id TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute("ALTER TABLE raw_events ADD COLUMN IF NOT EXISTS experiment TEXT")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS experiment_aggregates (
+                site_id TEXT NOT NULL,
+                experiment TEXT NOT NULL,
+                event_count INTEGER NOT NULL,
+                p75_lcp_ms INTEGER NOT NULL,
+                last_seen_timestamp TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (site_id, experiment)
             )
             """
         )
@@ -173,6 +197,40 @@ def list_aggregates(
                 (site_id, limit),
             ).fetchall()
         return {"site_id": site_id, "pages": [dict(row) for row in rows]}
+
+
+@app.get("/experiments", response_model=list[ExperimentAggregate])
+def list_experiments(site_id: str = Query(default="demo")) -> list[ExperimentAggregate]:
+    with REQUEST_SECONDS.labels("/experiments").time():
+        with db() as conn:
+            config_row = conn.execute(
+                "SELECT active_experiments FROM site_configs WHERE site_id = %s",
+                (site_id,),
+            ).fetchone()
+            if config_row is None:
+                raise HTTPException(status_code=404, detail="site config not found")
+            active_experiments = json.loads(config_row["active_experiments"])
+            rows = conn.execute(
+                """
+                SELECT experiment, event_count, p75_lcp_ms, last_seen_timestamp, updated_at
+                FROM experiment_aggregates
+                WHERE site_id = %s
+                """,
+                (site_id,),
+            ).fetchall()
+            aggregates_by_experiment = {row["experiment"]: row for row in rows}
+
+        return [
+            ExperimentAggregate(
+                site_id=site_id,
+                experiment=experiment,
+                event_count=aggregates_by_experiment.get(experiment, {}).get("event_count", 0),
+                p75_lcp_ms=aggregates_by_experiment.get(experiment, {}).get("p75_lcp_ms", 0),
+                last_seen_timestamp=aggregates_by_experiment.get(experiment, {}).get("last_seen_timestamp"),
+                updated_at=aggregates_by_experiment.get(experiment, {}).get("updated_at"),
+            )
+            for experiment in active_experiments
+        ]
 
 
 @app.get("/queue", response_model=QueueStatus)

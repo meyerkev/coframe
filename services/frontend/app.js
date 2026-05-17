@@ -36,16 +36,17 @@ bucketButtons.forEach((button) => {
 
 async function refresh(siteId) {
   const trendLimit = Math.max(1, Math.ceil((trendRangeMinutes * 60) / bucketSeconds));
-  const [config, aggregates, trendData, queueStatus] = await Promise.all([
+  const [config, aggregates, trendData, experimentData, queueStatus] = await Promise.all([
     fetch(`${API_BASE}/config/${encodeURIComponent(siteId)}`).then((response) => response.json()),
     fetch(`${API_BASE}/aggregates?site_id=${encodeURIComponent(siteId)}`).then((response) => response.json()),
     fetch(`${API_BASE}/trend?site_id=${encodeURIComponent(siteId)}&limit=${trendLimit}&window_seconds=${bucketSeconds}`).then((response) => response.json()),
+    fetch(`${API_BASE}/experiments?site_id=${encodeURIComponent(siteId)}`).then((response) => response.json()),
     fetch(`${API_BASE}/queue`).then((response) => response.json()),
   ]);
 
   renderPages(aggregates.pages || []);
   renderTrend(trendData.windows || [], trendData.window_seconds || bucketSeconds);
-  renderExperiments(config.active_experiments || []);
+  renderExperiments(experimentData || []);
   renderQueueStatus(queueStatus);
 }
 
@@ -144,9 +145,14 @@ function renderTrend(windows, windowSeconds) {
 function renderExperiments(items) {
   experiments.innerHTML = "";
   for (const item of items) {
-    const li = document.createElement("li");
-    li.textContent = item;
-    experiments.append(li);
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHtml(item.experiment)}</td>
+      <td>${item.event_count}</td>
+      <td>${item.p75_lcp_ms} ms</td>
+      <td>${escapeHtml(item.last_seen_timestamp || "")}</td>
+    `;
+    experiments.append(row);
   }
 }
 
