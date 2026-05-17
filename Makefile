@@ -1,6 +1,6 @@
 .PHONY: up down logs ps smoke clean
 
-COMPOSE ?= docker compose
+COMPOSE ?= docker-compose
 
 up:
 	$(COMPOSE) up --build
@@ -25,4 +25,3 @@ smoke:
 clean:
 	$(COMPOSE) down -v
 	rm -f data/*.db data/*.db-*
-
