@@ -17,7 +17,7 @@ help:
 	@printf "  make clean   Stop the stack and remove all persisted data\n"
 
 up:
-	$(COMPOSE) up --build
+	$(COMPOSE) up --build -d
 
 down:
 	$(COMPOSE) down
