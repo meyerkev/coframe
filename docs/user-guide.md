@@ -50,6 +50,15 @@ Reset local state:
 make clean
 ```
 
+## Demo Walkthrough
+
+1. Start the stack with `make up`.
+2. Open the dashboard at <http://localhost:8080>.
+3. Run `make smoke` to confirm ingest and aggregation.
+4. Run `make run-10m` to show the dashboard filling with live traffic.
+5. Run `make demo-queue-backpressure` to show queue buildup while the worker is down and drain after restart.
+6. Stop the stack with `make down`.
+
 ## Surfaces
 
 - Dashboard: <http://localhost:8080>

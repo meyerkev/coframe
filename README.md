@@ -46,6 +46,15 @@ Stop:
 make down
 ```
 
+## Demo
+
+1. Run `make up`.
+2. Open the dashboard at <http://localhost:8080>.
+3. Run `make smoke` to seed a single event.
+4. Run `make run-10m` to generate a live traffic sample.
+5. Run `make demo-queue-backpressure` to show the worker pause and queue drain behavior.
+6. Use `make down` when you are finished.
+
 ## Services
 
 - `api`: FastAPI service that accepts SDK events, returns site config, exposes aggregate reads, and publishes Prometheus metrics.
