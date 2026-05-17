@@ -225,7 +225,7 @@ def bucket_trend(
     windows = []
     for bucket_start in sorted(buckets):
         values = sorted(buckets[bucket_start])
-        p75_lcp_ms = None
+        p75_lcp_ms = 0
         if values:
             p75_lcp_ms = values[math.floor((len(values) - 1) * 0.75)]
         window_end = min(bucket_start + window_seconds, int(anchor.timestamp()))

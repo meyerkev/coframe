@@ -89,7 +89,7 @@ class TrendBucketTest(unittest.TestCase):
             ],
         )
         self.assertEqual([window["event_count"] for window in windows], [0, 0, 0])
-        self.assertEqual([window["p75_lcp_ms"] for window in windows], [None, None, None])
+        self.assertEqual([window["p75_lcp_ms"] for window in windows], [0, 0, 0])
 
 
 if __name__ == "__main__":
