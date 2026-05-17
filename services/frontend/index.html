@@ -20,7 +20,7 @@
     </header>
 
     <main class="layout">
-      <section class="panel">
+      <section class="panel top-pages-panel">
         <h2>Top Pages</h2>
         <table>
           <thead>
@@ -35,9 +35,17 @@
         </table>
       </section>
 
-      <section class="panel">
-        <h2>p75 LCP Trend</h2>
+      <section class="panel trend-panel">
+        <div class="panel-header">
+          <h2>LCP Trend</h2>
+          <div class="zoom-controls" aria-label="Chart zoom">
+            <button type="button" data-window="10" class="active">10</button>
+            <button type="button" data-window="25">25</button>
+            <button type="button" data-window="50">50</button>
+          </div>
+        </div>
         <div id="trend" class="trend"></div>
+        <div id="trend-axis" class="trend-axis"></div>
       </section>
 
       <section class="panel">
@@ -49,4 +57,3 @@
     <script src="/app.js"></script>
   </body>
 </html>
-

@@ -78,6 +78,15 @@ def init_db() -> None:
                 updated_at TEXT NOT NULL,
                 PRIMARY KEY (site_id, page_url)
             );
+
+            CREATE TABLE IF NOT EXISTS raw_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                site_id TEXT NOT NULL,
+                page_url TEXT NOT NULL,
+                lcp_ms INTEGER NOT NULL,
+                timestamp TEXT NOT NULL,
+                session_id TEXT NOT NULL
+            );
             """
         )
         conn.execute(
@@ -151,6 +160,27 @@ def list_aggregates(
         return {"site_id": site_id, "pages": [dict(row) for row in rows]}
 
 
+@app.get("/trend")
+def list_trend(
+    site_id: str = Query(default="demo"),
+    limit: int = Query(default=25, ge=5, le=200),
+) -> dict[str, Any]:
+    with REQUEST_SECONDS.labels("/trend").time():
+        with db() as conn:
+            rows = conn.execute(
+                """
+                SELECT page_url, lcp_ms, timestamp
+                FROM raw_events
+                WHERE site_id = ?
+                ORDER BY timestamp DESC, id DESC
+                LIMIT ?
+                """,
+                (site_id, limit),
+            ).fetchall()
+        points = [dict(row) for row in reversed(rows)]
+        return {"site_id": site_id, "limit": limit, "points": points}
+
+
 @app.get("/metrics")
 def metrics() -> Response:
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
@@ -160,4 +190,3 @@ def normalize_timestamp(value: datetime) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
-

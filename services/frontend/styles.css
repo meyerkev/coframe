@@ -36,7 +36,6 @@ h1 {
 
 h2 {
   font-size: 18px;
-  margin-bottom: 16px;
 }
 
 p {
@@ -64,6 +63,34 @@ button {
   padding: 0 12px;
 }
 
+.panel-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.zoom-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.zoom-controls button {
+  background: #ffffff;
+  border-color: #b9c2cf;
+  color: #1c232b;
+  height: 30px;
+  min-width: 38px;
+  padding: 0 8px;
+}
+
+.zoom-controls button.active {
+  background: #1f6feb;
+  border-color: #1f6feb;
+  color: #ffffff;
+}
+
 button {
   background: #1f6feb;
   border-color: #1f6feb;
@@ -86,8 +113,13 @@ button {
   padding: 20px;
 }
 
-.panel:first-child {
-  grid-row: span 2;
+.panel > h2 {
+  margin-bottom: 16px;
+}
+
+.top-pages-panel,
+.trend-panel {
+  grid-column: 1 / -1;
 }
 
 table {
@@ -111,15 +143,33 @@ th {
 .trend {
   align-items: end;
   display: flex;
-  gap: 10px;
-  height: 190px;
+  gap: 4px;
+  height: 240px;
+  overflow: hidden;
 }
 
 .bar {
   background: #2da44e;
   border-radius: 4px 4px 0 0;
+  flex: 1 1 8px;
   min-height: 4px;
-  width: 42px;
+  min-width: 4px;
+}
+
+.trend-axis {
+  color: #5d6978;
+  display: flex;
+  font-size: 12px;
+  justify-content: space-between;
+  margin-top: 10px;
+  min-height: 16px;
+  gap: 12px;
+}
+
+.trend-axis span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 ul {
@@ -144,4 +194,3 @@ ul {
     padding: 16px;
   }
 }
-
