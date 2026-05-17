@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help up down logs ps smoke run-10m clean
+.PHONY: help up down logs ps smoke run-10m run-100-paused demo-queue-backpressure clean
 
 COMPOSE ?= docker-compose
 
@@ -13,6 +13,7 @@ help:
 	@printf "  make smoke   Send one event and read aggregates\n"
 	@printf "  make run-10m Generate demo traffic for 10 minutes at 3 events/minute\n"
 	@printf "  make run-100-paused Generate 100 events and pause 60 seconds after\n"
+	@printf "  make demo-queue-backpressure Stop worker, queue 100, pause 60, restart\n"
 	@printf "  make clean   Stop the stack and remove all persisted data\n"
 
 up:
@@ -40,6 +41,9 @@ run-10m:
 
 run-100-paused:
 	EVENT_COUNT=100 PAUSE_SECONDS=60 python3 scripts/generate_events.py
+
+demo-queue-backpressure:
+	python3 scripts/demo_queue_backpressure.py
 
 clean:
 	$(COMPOSE) down --volumes --remove-orphans
