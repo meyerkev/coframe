@@ -208,12 +208,12 @@ def bucket_trend(rows: list[sqlite3.Row], limit: int, window_minutes: int) -> li
     window_seconds = window_minutes * 60
     parsed_rows = [(parse_timestamp(row["timestamp"]), row) for row in rows]
     latest = max(timestamp for timestamp, _ in parsed_rows)
-    latest_bucket = int(latest.timestamp()) // window_seconds * window_seconds
+    latest_bucket = floor_to_bucket(latest, window_minutes)
     first_bucket = latest_bucket - ((limit - 1) * window_seconds)
 
     buckets: dict[int, list[int]] = {first_bucket + (index * window_seconds): [] for index in range(limit)}
     for timestamp, row in parsed_rows:
-        bucket_start = int(timestamp.timestamp()) // window_seconds * window_seconds
+        bucket_start = floor_to_bucket(timestamp, window_minutes)
         if bucket_start in buckets:
             buckets[bucket_start].append(row["lcp_ms"])
 
@@ -236,6 +236,13 @@ def bucket_trend(rows: list[sqlite3.Row], limit: int, window_minutes: int) -> li
 
 def parse_timestamp(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+
+
+def floor_to_bucket(value: datetime, window_minutes: int) -> int:
+    value = value.astimezone(timezone.utc)
+    bucket_minute = value.minute - (value.minute % window_minutes)
+    bucket_start = value.replace(minute=bucket_minute, second=0, microsecond=0)
+    return int(bucket_start.timestamp())
 
 
 def format_utc(epoch_seconds: int) -> str:
