@@ -11,7 +11,7 @@ help:
 	@printf "  make logs    Follow service logs\n"
 	@printf "  make ps      Show Compose service status\n"
 	@printf "  make smoke   Send one event and read aggregates\n"
-	@printf "  make clean   Stop the stack and remove local state\n"
+	@printf "  make clean   Stop the stack and remove all persisted data\n"
 
 up:
 	$(COMPOSE) up --build
@@ -34,5 +34,5 @@ smoke:
 	curl -fsS 'http://localhost:8000/aggregates?site_id=demo'
 
 clean:
-	$(COMPOSE) down -v
-	rm -f data/*.db data/*.db-*
+	$(COMPOSE) down --volumes --remove-orphans
+	rm -rf data/*
