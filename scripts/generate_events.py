@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import os
 import time
 import urllib.request
 from datetime import datetime, timezone
@@ -15,11 +16,11 @@ WEIGHTS = [9, 7, 5, 4, 3, 2]
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate demo performance events.")
-    parser.add_argument("--api", default="http://localhost:8000")
-    parser.add_argument("--site-id", default="demo")
-    parser.add_argument("--duration-minutes", type=float, default=10)
-    parser.add_argument("--events-per-minute", type=float, default=3)
-    parser.add_argument("--session-prefix", default="generated")
+    parser.add_argument("--api", default=env("API_URL", "http://localhost:8000"))
+    parser.add_argument("--site-id", default=env("SITE_ID", "demo"))
+    parser.add_argument("--duration-minutes", type=float, default=env_float("DURATION_MINUTES", 10))
+    parser.add_argument("--events-per-minute", type=float, default=env_float("EVENTS_PER_MINUTE", 3))
+    parser.add_argument("--session-prefix", default=env("SESSION_PREFIX", "generated"))
     args = parser.parse_args()
 
     total_events = max(1, round(args.duration_minutes * args.events_per_minute))
@@ -58,6 +59,17 @@ def post_event(api: str, payload: dict[str, object]) -> None:
         response.read()
 
 
+def env(name: str, default: str) -> str:
+    value = os.getenv(name)
+    return default if value is None or value == "" else value
+
+
+def env_float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None or value == "":
+        return default
+    return float(value)
+
+
 if __name__ == "__main__":
     main()
-

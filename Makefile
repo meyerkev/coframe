@@ -3,9 +3,6 @@
 .PHONY: help up down logs ps smoke run-10m clean
 
 COMPOSE ?= docker-compose
-EVENT_RUN_MINUTES ?= 10
-EVENTS_PER_MINUTE ?= 3
-SITE_ID ?= demo
 
 help:
 	@printf "Available targets:\n"
@@ -38,11 +35,7 @@ smoke:
 	curl -fsS 'http://localhost:8000/aggregates?site_id=demo'
 
 run-10m:
-	python3 scripts/generate_events.py \
-		--site-id $(SITE_ID) \
-		--duration-minutes $(EVENT_RUN_MINUTES) \
-		--events-per-minute $(EVENTS_PER_MINUTE) \
-		--session-prefix ten-minute-run
+	python3 scripts/generate_events.py
 
 clean:
 	$(COMPOSE) down --volumes --remove-orphans
