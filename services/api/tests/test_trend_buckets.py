@@ -34,7 +34,12 @@ class TrendBucketTest(unittest.TestCase):
             Row(timestamp="2026-05-17T16:10:00Z", lcp_ms=400),
         ]
 
-        windows = bucket_trend(rows, limit=3, window_minutes=5)
+        windows = bucket_trend(
+            rows,
+            limit=3,
+            window_minutes=5,
+            end_at=datetime(2026, 5, 17, 16, 10, tzinfo=timezone.utc),
+        )
 
         self.assertEqual(
             [window["window_start"] for window in windows],
@@ -46,6 +51,29 @@ class TrendBucketTest(unittest.TestCase):
         )
         self.assertEqual([window["event_count"] for window in windows], [1, 2, 1])
         self.assertEqual([window["p75_lcp_ms"] for window in windows], [100, 200, 400])
+
+    def test_bucket_trend_anchors_to_now_instead_of_latest_event(self):
+        rows = [
+            Row(timestamp="2026-05-17T16:04:59Z", lcp_ms=100),
+        ]
+
+        windows = bucket_trend(
+            rows,
+            limit=3,
+            window_minutes=5,
+            end_at=datetime(2026, 5, 17, 16, 15, tzinfo=timezone.utc),
+        )
+
+        self.assertEqual(
+            [window["window_start"] for window in windows],
+            [
+                "2026-05-17T16:05:00Z",
+                "2026-05-17T16:10:00Z",
+                "2026-05-17T16:15:00Z",
+            ],
+        )
+        self.assertEqual([window["event_count"] for window in windows], [0, 0, 0])
+        self.assertEqual([window["p75_lcp_ms"] for window in windows], [None, None, None])
 
 
 if __name__ == "__main__":

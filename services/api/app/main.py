@@ -201,15 +201,20 @@ def normalize_timestamp(value: datetime) -> str:
     return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def bucket_trend(rows: list[sqlite3.Row], limit: int, window_minutes: int) -> list[dict[str, Any]]:
+def bucket_trend(
+    rows: list[sqlite3.Row],
+    limit: int,
+    window_minutes: int,
+    end_at: datetime | None = None,
+) -> list[dict[str, Any]]:
     if not rows:
         return []
 
     window_seconds = window_minutes * 60
     parsed_rows = [(parse_timestamp(row["timestamp"]), row) for row in rows]
-    latest = max(timestamp for timestamp, _ in parsed_rows)
-    latest_bucket = floor_to_bucket(latest, window_minutes)
-    first_bucket = latest_bucket - ((limit - 1) * window_seconds)
+    anchor = end_at or datetime.now(timezone.utc)
+    current_bucket = floor_to_bucket(anchor, window_minutes)
+    first_bucket = current_bucket - ((limit - 1) * window_seconds)
 
     buckets: dict[int, list[int]] = {first_bucket + (index * window_seconds): [] for index in range(limit)}
     for timestamp, row in parsed_rows:
