@@ -32,6 +32,12 @@ Generate a 10-minute demo traffic run:
 make run-10m
 ```
 
+Run the queue backpressure demo:
+
+```sh
+make demo-queue-backpressure
+```
+
 Stop the system:
 
 ```sh
@@ -61,6 +67,10 @@ make clean
 5. Make service changes in `services/<name>`.
 6. Rebuild with `docker compose up --build <name>`.
 7. Watch logs and metrics before calling the change good.
+
+## Runbooks
+
+- [Queue backpressure](runbook-backpressure.md)
 
 ## Adding A Service
 

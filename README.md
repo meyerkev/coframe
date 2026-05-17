@@ -34,6 +34,12 @@ Generate 10 minutes of demo traffic at 3 events per minute:
 make run-10m
 ```
 
+Run the queue backpressure demo:
+
+```sh
+make demo-queue-backpressure
+```
+
 Stop:
 
 ```sh
@@ -48,6 +54,10 @@ make down
 - `postgres`: primary datastore for raw events, aggregates, and config.
 - `redis`: queue between API and worker.
 - `prometheus`: metrics collection for API and worker.
+
+## Runbooks
+
+- [Queue backpressure](docs/runbook-backpressure.md)
 
 ## Adding A Fourth Service
 
