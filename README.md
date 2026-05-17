@@ -52,7 +52,7 @@ make down
 2. Open the dashboard at <http://localhost:8080>.
 3. Run `make smoke` to seed a single event.
 4. Run `make run-10m` to generate a live traffic sample.
-5. Run `make demo-queue-backpressure` to show the worker pause and queue drain behavior.
+5. Run `make demo-queue-backpressure` to show the failure on a 60-second backoff and the queue drain behavior.
 6. Use `make down` when you are finished.
 
 ## Services
@@ -80,4 +80,6 @@ No platform code changes are required unless the service needs a new shared depe
 
 ## Demo Recording
 
-A 5-minute Loom should show: deploying the stack with `make up`, opening the dashboard and Prometheus, running `make smoke`, inducing a worker failure by stopping the worker, showing queue buildup in `GET /queue`, restarting the worker, and confirming the queue drains back to zero.
+Loom: https://www.loom.com/share/465bb9a7ce4447ba80b6e2396fa99549
+
+A 5-minute Loom should show: deploying the stack with `make up`, opening the dashboard and Prometheus, running `make smoke`, inducing a worker failure by stopping the worker, showing queue buildup in `GET /queue`, holding the worker down for 60 seconds, restarting it, and confirming the queue drains back to zero.
