@@ -84,3 +84,7 @@ make clean
 ## Adding A Service
 
 Create `services/<name>/Dockerfile`, add it to `docker-compose.yml`, and optionally add a Prometheus scrape job. Keep `/healthz` and `/metrics` conventions when possible so operators do not need a different workflow for each service.
+
+## Demo Notes
+
+For the recording, show `make up`, the dashboard, Prometheus, `make smoke`, a worker stop/start failure, `GET /queue` showing backlog, and the queue draining back to zero after recovery.

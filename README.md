@@ -80,4 +80,4 @@ No platform code changes are required unless the service needs a new shared depe
 
 ## Demo Recording
 
-Loom: TODO
+A 5-minute Loom should show: deploying the stack with `make up`, opening the dashboard and Prometheus, running `make smoke`, inducing a worker failure by stopping the worker, showing queue buildup in `GET /queue`, restarting the worker, and confirming the queue drains back to zero.
