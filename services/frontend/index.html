@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Coframe Performance</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>Coframe Performance</h1>
+        <p>Site health and page performance</p>
+      </div>
+      <form id="site-form" class="site-form">
+        <label for="site-id">Site</label>
+        <input id="site-id" name="site-id" value="demo" />
+        <button type="submit">Refresh</button>
+      </form>
+    </header>
+
+    <main class="layout">
+      <section class="panel">
+        <h2>Top Pages</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Page</th>
+              <th>Events</th>
+              <th>p75 LCP</th>
+              <th>Last seen</th>
+            </tr>
+          </thead>
+          <tbody id="pages"></tbody>
+        </table>
+      </section>
+
+      <section class="panel">
+        <h2>p75 LCP Trend</h2>
+        <div id="trend" class="trend"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Active Experiments</h2>
+        <ul id="experiments"></ul>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
+
