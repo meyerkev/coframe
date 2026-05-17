@@ -26,6 +26,12 @@ Run a basic ingest smoke test:
 make smoke
 ```
 
+Generate a 10-minute demo traffic run:
+
+```sh
+make run-10m
+```
+
 Stop the system:
 
 ```sh

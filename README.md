@@ -28,6 +28,12 @@ Seed one event and read the aggregate:
 make smoke
 ```
 
+Generate 10 minutes of demo traffic at 3 events per minute:
+
+```sh
+make run-10m
+```
+
 Stop:
 
 ```sh
