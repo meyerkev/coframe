@@ -67,11 +67,15 @@ function renderPages(pages) {
 
 function renderTrend(windows, windowMinutes) {
   trend.innerHTML = "";
-  const populated = windows.filter((window) => window.p75_lcp_ms !== null);
+  const populated = windows.filter((window) => window.event_count > 0);
   if (populated.length === 0) {
     trend.innerHTML = `<div class="empty">No LCP data yet.</div>`;
     return;
   }
+  const chartWindows = windows.map((window) => ({
+    ...window,
+    p75_lcp_ms: window.p75_lcp_ms ?? 0,
+  }));
 
   const width = 920;
   const height = 260;
@@ -81,9 +85,9 @@ function renderTrend(windows, windowMinutes) {
   const values = populated.map((window) => window.p75_lcp_ms);
   const maxY = niceMax(Math.max(...values, 1000));
   const yTicks = [0, maxY / 4, maxY / 2, (maxY * 3) / 4, maxY];
-  const points = windows.map((window, index) => {
-    const x = margin.left + (windows.length === 1 ? chartWidth : (index / (windows.length - 1)) * chartWidth);
-    const y = window.p75_lcp_ms === null ? null : margin.top + chartHeight - (window.p75_lcp_ms / maxY) * chartHeight;
+  const points = chartWindows.map((window, index) => {
+    const x = margin.left + (chartWindows.length === 1 ? chartWidth : (index / (chartWindows.length - 1)) * chartWidth);
+    const y = margin.top + chartHeight - (window.p75_lcp_ms / maxY) * chartHeight;
     return { ...window, x, y };
   });
   const xTicks = pickXTicks(points, 4);
