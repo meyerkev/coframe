@@ -22,6 +22,7 @@ EVENT_QUEUE = os.getenv("EVENT_QUEUE", "page-events")
 EVENTS_ACCEPTED = Counter("api_events_accepted_total", "Events accepted by the ingest API")
 CONFIG_READS = Counter("api_config_reads_total", "SDK config reads", ["site_id"])
 REQUEST_SECONDS = Histogram("api_request_seconds", "API request latency", ["endpoint"])
+ALLOWED_WINDOW_SECONDS = {15, 30, 60, 300, 600, 1200, 1800, 3600}
 
 app = FastAPI(title="Coframe Performance API")
 redis = Redis.from_url(REDIS_URL, decode_responses=True)
@@ -176,10 +177,10 @@ def queue_status() -> QueueStatus:
 def list_trend(
     site_id: str = Query(default="demo"),
     limit: int = Query(default=30, ge=5, le=120),
-    window_minutes: int = Query(default=1),
+    window_seconds: int | None = Query(default=None),
+    window_minutes: int | None = Query(default=1),
 ) -> dict[str, Any]:
-    if window_minutes not in {1, 5, 10, 20, 30, 60}:
-        raise HTTPException(status_code=400, detail="window_minutes must be one of 1, 5, 10, 20, 30, 60")
+    resolved_window_seconds = resolve_window_seconds(window_seconds, window_minutes)
 
     with REQUEST_SECONDS.labels("/trend").time():
         with db() as conn:
@@ -192,11 +193,12 @@ def list_trend(
                 """,
                 (site_id,),
             ).fetchall()
-        windows = bucket_trend(rows, limit, window_minutes)
+        windows = bucket_trend(rows, limit, resolved_window_seconds)
         return {
             "site_id": site_id,
             "limit": limit,
-            "window_minutes": window_minutes,
+            "window_seconds": resolved_window_seconds,
+            "window_minutes": resolved_window_seconds / 60,
             "windows": windows,
         }
 
@@ -215,21 +217,20 @@ def normalize_timestamp(value: datetime) -> str:
 def bucket_trend(
     rows: list[sqlite3.Row],
     limit: int,
-    window_minutes: int,
+    window_seconds: int,
     end_at: datetime | None = None,
 ) -> list[dict[str, Any]]:
     if not rows:
         return []
 
-    window_seconds = window_minutes * 60
     parsed_rows = [(parse_timestamp(row["timestamp"]), row) for row in rows]
     anchor = end_at or datetime.now(timezone.utc)
-    current_bucket = floor_to_bucket(anchor, window_minutes)
+    current_bucket = floor_to_bucket(anchor, window_seconds)
     first_bucket = current_bucket - ((limit - 1) * window_seconds)
 
     buckets: dict[int, list[int]] = {first_bucket + (index * window_seconds): [] for index in range(limit)}
     for timestamp, row in parsed_rows:
-        bucket_start = floor_to_bucket(timestamp, window_minutes)
+        bucket_start = floor_to_bucket(timestamp, window_seconds)
         if bucket_start in buckets:
             buckets[bucket_start].append(row["lcp_ms"])
 
@@ -255,11 +256,26 @@ def parse_timestamp(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
 
 
-def floor_to_bucket(value: datetime, window_minutes: int) -> int:
+def floor_to_bucket(value: datetime, window_seconds: int) -> int:
     value = value.astimezone(timezone.utc)
-    bucket_minute = value.minute - (value.minute % window_minutes)
-    bucket_start = value.replace(minute=bucket_minute, second=0, microsecond=0)
-    return int(bucket_start.timestamp())
+    epoch_seconds = int(value.timestamp())
+    bucket_epoch = epoch_seconds - (epoch_seconds % window_seconds)
+    return bucket_epoch
+
+
+def resolve_window_seconds(window_seconds: int | None, window_minutes: int | None) -> int:
+    if window_seconds is not None:
+        if window_seconds not in ALLOWED_WINDOW_SECONDS:
+            raise HTTPException(status_code=400, detail="window_seconds must be one of 15, 30, 60, 300, 600, 1200, 1800, 3600")
+        return window_seconds
+
+    if window_minutes is None:
+        window_minutes = 1
+
+    resolved_window_seconds = window_minutes * 60
+    if resolved_window_seconds not in ALLOWED_WINDOW_SECONDS:
+        raise HTTPException(status_code=400, detail="window_minutes must be one of 1, 5, 10, 20, 30, 60")
+    return resolved_window_seconds
 
 
 def format_utc(epoch_seconds: int) -> str:

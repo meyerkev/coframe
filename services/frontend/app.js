@@ -11,7 +11,7 @@ const zoomButtons = [...document.querySelectorAll("[data-window]")];
 const bucketButtons = [...document.querySelectorAll("[data-bucket]")];
 
 let trendWindow = 30;
-let bucketMinutes = 1;
+let bucketSeconds = 60;
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -28,7 +28,7 @@ zoomButtons.forEach((button) => {
 
 bucketButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    bucketMinutes = Number(button.dataset.bucket);
+    bucketSeconds = Number(button.dataset.bucket);
     bucketButtons.forEach((item) => item.classList.toggle("active", item === button));
     refresh(siteInput.value.trim() || "demo");
   });
@@ -38,12 +38,12 @@ async function refresh(siteId) {
   const [config, aggregates, trendData, queueStatus] = await Promise.all([
     fetch(`${API_BASE}/config/${encodeURIComponent(siteId)}`).then((response) => response.json()),
     fetch(`${API_BASE}/aggregates?site_id=${encodeURIComponent(siteId)}`).then((response) => response.json()),
-    fetch(`${API_BASE}/trend?site_id=${encodeURIComponent(siteId)}&limit=${trendWindow}&window_minutes=${bucketMinutes}`).then((response) => response.json()),
+    fetch(`${API_BASE}/trend?site_id=${encodeURIComponent(siteId)}&limit=${trendWindow}&window_seconds=${bucketSeconds}`).then((response) => response.json()),
     fetch(`${API_BASE}/queue`).then((response) => response.json()),
   ]);
 
   renderPages(aggregates.pages || []);
-  renderTrend(trendData.windows || [], trendData.window_minutes || bucketMinutes);
+  renderTrend(trendData.windows || [], trendData.window_seconds || bucketSeconds);
   renderExperiments(config.active_experiments || []);
   renderQueueStatus(queueStatus);
 }
@@ -69,7 +69,7 @@ function renderPages(pages) {
   }
 }
 
-function renderTrend(windows, windowMinutes) {
+function renderTrend(windows, windowSeconds) {
   trend.innerHTML = "";
   const populated = windows.filter((window) => window.event_count > 0);
   const chartWindows = windows.map((window) => ({
@@ -96,7 +96,7 @@ function renderTrend(windows, windowMinutes) {
   });
   const xTicks = pickXTicks(points, 4);
   const linePath = buildLinePath(points);
-  const bucketLabel = `${windowMinutes}m buckets`;
+  const bucketLabel = `${formatBucketLabel(windowSeconds)} buckets`;
 
   trend.innerHTML = `
     <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="p75 LCP line chart by ${escapeHtml(bucketLabel)}">
@@ -119,7 +119,7 @@ function renderTrend(windows, windowMinutes) {
           const anchor = index === 0 ? "start" : index === xTicks.length - 1 ? "end" : "middle";
           const labelValue = index === xTicks.length - 1 ? point.window_end : point.window_start;
           return `
-          <text x="${point.x}" y="${height - margin.bottom + 22}" text-anchor="${anchor}">${escapeHtml(formatShortTimestamp(labelValue))}</text>
+          <text x="${point.x}" y="${height - margin.bottom + 22}" text-anchor="${anchor}">${escapeHtml(formatAxisTimestamp(labelValue, windowSeconds))}</text>
         `;
         }).join("")}
       </g>
@@ -171,12 +171,22 @@ function formatTimestamp(value) {
   return date.toISOString().replace("T", " ").replace(".000", "").replace("Z", " UTC");
 }
 
-function formatShortTimestamp(value) {
+function formatAxisTimestamp(value, windowSeconds) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  return date.toISOString().slice(11, 16);
+  return windowSeconds < 60 ? date.toISOString().slice(11, 19) : date.toISOString().slice(11, 16);
+}
+
+function formatBucketLabel(seconds) {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  if (seconds % 3600 === 0) {
+    return `${seconds / 3600}h`;
+  }
+  return `${seconds / 60}m`;
 }
 
 function niceMax(value) {
