@@ -7,10 +7,10 @@ const trend = document.querySelector("#trend");
 const experiments = document.querySelector("#experiments");
 const queueCount = document.querySelector("#queue-count");
 const queueName = document.querySelector("#queue-name");
-const zoomButtons = [...document.querySelectorAll("[data-window]")];
+const rangeButtons = [...document.querySelectorAll("[data-range]")];
 const bucketButtons = [...document.querySelectorAll("[data-bucket]")];
 
-let trendWindow = 30;
+let trendRangeMinutes = 30;
 let bucketSeconds = 60;
 
 form.addEventListener("submit", (event) => {
@@ -18,10 +18,10 @@ form.addEventListener("submit", (event) => {
   refresh(siteInput.value.trim() || "demo");
 });
 
-zoomButtons.forEach((button) => {
+rangeButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    trendWindow = Number(button.dataset.window);
-    zoomButtons.forEach((item) => item.classList.toggle("active", item === button));
+    trendRangeMinutes = Number(button.dataset.range);
+    rangeButtons.forEach((item) => item.classList.toggle("active", item === button));
     refresh(siteInput.value.trim() || "demo");
   });
 });
@@ -35,10 +35,11 @@ bucketButtons.forEach((button) => {
 });
 
 async function refresh(siteId) {
+  const trendLimit = Math.max(1, Math.ceil((trendRangeMinutes * 60) / bucketSeconds));
   const [config, aggregates, trendData, queueStatus] = await Promise.all([
     fetch(`${API_BASE}/config/${encodeURIComponent(siteId)}`).then((response) => response.json()),
     fetch(`${API_BASE}/aggregates?site_id=${encodeURIComponent(siteId)}`).then((response) => response.json()),
-    fetch(`${API_BASE}/trend?site_id=${encodeURIComponent(siteId)}&limit=${trendWindow}&window_seconds=${bucketSeconds}`).then((response) => response.json()),
+    fetch(`${API_BASE}/trend?site_id=${encodeURIComponent(siteId)}&limit=${trendLimit}&window_seconds=${bucketSeconds}`).then((response) => response.json()),
     fetch(`${API_BASE}/queue`).then((response) => response.json()),
   ]);
 
