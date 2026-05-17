@@ -49,6 +49,11 @@ class SiteConfig(BaseModel):
     active_experiments: list[str]
 
 
+class QueueStatus(BaseModel):
+    queue_name: str
+    message_count: int
+
+
 @contextmanager
 def db() -> Any:
     conn = sqlite3.connect(DATABASE_PATH)
@@ -159,6 +164,12 @@ def list_aggregates(
                 (site_id, limit),
             ).fetchall()
         return {"site_id": site_id, "pages": [dict(row) for row in rows]}
+
+
+@app.get("/queue", response_model=QueueStatus)
+def queue_status() -> QueueStatus:
+    with REQUEST_SECONDS.labels("/queue").time():
+        return QueueStatus(queue_name=EVENT_QUEUE, message_count=int(redis.llen(EVENT_QUEUE)))
 
 
 @app.get("/trend")

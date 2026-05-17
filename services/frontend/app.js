@@ -5,6 +5,8 @@ const siteInput = document.querySelector("#site-id");
 const pagesBody = document.querySelector("#pages");
 const trend = document.querySelector("#trend");
 const experiments = document.querySelector("#experiments");
+const queueCount = document.querySelector("#queue-count");
+const queueName = document.querySelector("#queue-name");
 const zoomButtons = [...document.querySelectorAll("[data-window]")];
 const bucketButtons = [...document.querySelectorAll("[data-bucket]")];
 
@@ -33,15 +35,17 @@ bucketButtons.forEach((button) => {
 });
 
 async function refresh(siteId) {
-  const [config, aggregates, trendData] = await Promise.all([
+  const [config, aggregates, trendData, queueStatus] = await Promise.all([
     fetch(`${API_BASE}/config/${encodeURIComponent(siteId)}`).then((response) => response.json()),
     fetch(`${API_BASE}/aggregates?site_id=${encodeURIComponent(siteId)}`).then((response) => response.json()),
     fetch(`${API_BASE}/trend?site_id=${encodeURIComponent(siteId)}&limit=${trendWindow}&window_minutes=${bucketMinutes}`).then((response) => response.json()),
+    fetch(`${API_BASE}/queue`).then((response) => response.json()),
   ]);
 
   renderPages(aggregates.pages || []);
   renderTrend(trendData.windows || [], trendData.window_minutes || bucketMinutes);
   renderExperiments(config.active_experiments || []);
+  renderQueueStatus(queueStatus);
 }
 
 function renderPages(pages) {
@@ -143,6 +147,11 @@ function renderExperiments(items) {
     li.textContent = item;
     experiments.append(li);
   }
+}
+
+function renderQueueStatus(status) {
+  queueCount.textContent = `${status.message_count ?? 0}`;
+  queueName.textContent = status.queue_name || "page-events";
 }
 
 function escapeHtml(value) {
