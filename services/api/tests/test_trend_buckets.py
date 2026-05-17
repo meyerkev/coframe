@@ -38,7 +38,7 @@ class TrendBucketTest(unittest.TestCase):
             rows,
             limit=3,
             window_minutes=5,
-            end_at=datetime(2026, 5, 17, 16, 10, tzinfo=timezone.utc),
+            end_at=datetime(2026, 5, 17, 16, 11, tzinfo=timezone.utc),
         )
 
         self.assertEqual(
@@ -47,6 +47,14 @@ class TrendBucketTest(unittest.TestCase):
                 "2026-05-17T16:00:00Z",
                 "2026-05-17T16:05:00Z",
                 "2026-05-17T16:10:00Z",
+            ],
+        )
+        self.assertEqual(
+            [window["window_end"] for window in windows],
+            [
+                "2026-05-17T16:05:00Z",
+                "2026-05-17T16:10:00Z",
+                "2026-05-17T16:11:00Z",
             ],
         )
         self.assertEqual([window["event_count"] for window in windows], [1, 2, 1])
@@ -69,6 +77,14 @@ class TrendBucketTest(unittest.TestCase):
             [
                 "2026-05-17T16:05:00Z",
                 "2026-05-17T16:10:00Z",
+                "2026-05-17T16:15:00Z",
+            ],
+        )
+        self.assertEqual(
+            [window["window_end"] for window in windows],
+            [
+                "2026-05-17T16:10:00Z",
+                "2026-05-17T16:15:00Z",
                 "2026-05-17T16:15:00Z",
             ],
         )

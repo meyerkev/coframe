@@ -228,10 +228,11 @@ def bucket_trend(
         p75_lcp_ms = None
         if values:
             p75_lcp_ms = values[math.floor((len(values) - 1) * 0.75)]
+        window_end = min(bucket_start + window_seconds, int(anchor.timestamp()))
         windows.append(
             {
                 "window_start": format_utc(bucket_start),
-                "window_end": format_utc(bucket_start + window_seconds),
+                "window_end": format_utc(window_end),
                 "event_count": len(values),
                 "p75_lcp_ms": p75_lcp_ms,
             }

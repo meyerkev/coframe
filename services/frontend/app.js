@@ -68,14 +68,14 @@ function renderPages(pages) {
 function renderTrend(windows, windowMinutes) {
   trend.innerHTML = "";
   const populated = windows.filter((window) => window.event_count > 0);
-  if (populated.length === 0) {
-    trend.innerHTML = `<div class="empty">No LCP data yet.</div>`;
-    return;
-  }
   const chartWindows = windows.map((window) => ({
     ...window,
     p75_lcp_ms: window.p75_lcp_ms ?? 0,
   }));
+  if (chartWindows.length === 0) {
+    trend.innerHTML = `<div class="empty">No LCP data yet.</div>`;
+    return;
+  }
 
   const width = 920;
   const height = 260;
@@ -113,8 +113,9 @@ function renderTrend(windows, windowMinutes) {
         <line x1="${margin.left}" x2="${width - margin.right}" y1="${height - margin.bottom}" y2="${height - margin.bottom}"></line>
         ${xTicks.map((point, index) => {
           const anchor = index === 0 ? "start" : index === xTicks.length - 1 ? "end" : "middle";
+          const labelValue = index === xTicks.length - 1 ? point.window_end : point.window_start;
           return `
-          <text x="${point.x}" y="${height - margin.bottom + 22}" text-anchor="${anchor}">${escapeHtml(formatShortTimestamp(point.window_start))}</text>
+          <text x="${point.x}" y="${height - margin.bottom + 22}" text-anchor="${anchor}">${escapeHtml(formatShortTimestamp(labelValue))}</text>
         `;
         }).join("")}
       </g>
@@ -130,6 +131,9 @@ function renderTrend(windows, windowMinutes) {
       </g>
     </svg>
   `;
+  if (populated.length === 0) {
+    trend.insertAdjacentHTML("afterbegin", `<div class="empty chart-note">No recent LCP data in this range.</div>`);
+  }
 }
 
 function renderExperiments(items) {
