@@ -56,7 +56,7 @@ make clean
 
 1. Pull the latest code.
 2. Run `make up`.
-3. Use `make smoke` to confirm API, Redis, worker, and SQLite are connected.
+3. Use `make smoke` to confirm API, Redis, worker, and Postgres are connected.
 4. Open the dashboard and Prometheus.
 5. Make service changes in `services/<name>`.
 6. Rebuild with `docker compose up --build <name>`.
@@ -65,4 +65,3 @@ make clean
 ## Adding A Service
 
 Create `services/<name>/Dockerfile`, add it to `docker-compose.yml`, and optionally add a Prometheus scrape job. Keep `/healthz` and `/metrics` conventions when possible so operators do not need a different workflow for each service.
-

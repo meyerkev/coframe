@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import math
 import os
-import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
@@ -12,10 +11,12 @@ from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field, HttpUrl
+from psycopg import Connection, connect
+from psycopg.rows import dict_row
 from redis import Redis
 
 
-DATABASE_PATH = os.getenv("DATABASE_PATH", "/data/coframe.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://coframe:coframe@localhost:5432/coframe")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 EVENT_QUEUE = os.getenv("EVENT_QUEUE", "page-events")
 
@@ -57,8 +58,8 @@ class QueueStatus(BaseModel):
 
 @contextmanager
 def db() -> Any:
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.row_factory = sqlite3.Row
+    conn: Connection[Any] = connect(DATABASE_URL, row_factory=dict_row)
+    conn.autocommit = True
     try:
         yield conn
     finally:
@@ -66,16 +67,18 @@ def db() -> Any:
 
 
 def init_db() -> None:
-    os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
     with db() as conn:
-        conn.executescript(
+        conn.execute(
             """
             CREATE TABLE IF NOT EXISTS site_configs (
                 site_id TEXT PRIMARY KEY,
-                sampling_rate REAL NOT NULL,
+                sampling_rate DOUBLE PRECISION NOT NULL,
                 active_experiments TEXT NOT NULL
-            );
-
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS page_aggregates (
                 site_id TEXT NOT NULL,
                 page_url TEXT NOT NULL,
@@ -84,27 +87,30 @@ def init_db() -> None:
                 last_seen_timestamp TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 PRIMARY KEY (site_id, page_url)
-            );
-
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS raw_events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id BIGSERIAL PRIMARY KEY,
                 site_id TEXT NOT NULL,
                 page_url TEXT NOT NULL,
                 lcp_ms INTEGER NOT NULL,
                 timestamp TEXT NOT NULL,
                 session_id TEXT NOT NULL
-            );
+            )
             """
         )
         conn.execute(
             """
-            INSERT OR IGNORE INTO site_configs
+            INSERT INTO site_configs
                 (site_id, sampling_rate, active_experiments)
             VALUES
                 ('demo', 1.0, '["hero-copy", "checkout-flow"]')
+            ON CONFLICT (site_id) DO NOTHING
             """
         )
-        conn.commit()
 
 
 @app.on_event("startup")
@@ -115,6 +121,8 @@ def on_startup() -> None:
 
 @app.get("/healthz")
 def healthz() -> dict[str, str]:
+    with db() as conn:
+        conn.execute("SELECT 1")
     redis.ping()
     return {"status": "ok"}
 
@@ -134,7 +142,7 @@ def get_config(site_id: str) -> SiteConfig:
     with REQUEST_SECONDS.labels("/config/{site_id}").time():
         with db() as conn:
             row = conn.execute(
-                "SELECT site_id, sampling_rate, active_experiments FROM site_configs WHERE site_id = ?",
+                "SELECT site_id, sampling_rate, active_experiments FROM site_configs WHERE site_id = %s",
                 (site_id,),
             ).fetchone()
         if row is None:
@@ -158,9 +166,9 @@ def list_aggregates(
                 """
                 SELECT site_id, page_url, event_count, p75_lcp_ms, last_seen_timestamp, updated_at
                 FROM page_aggregates
-                WHERE site_id = ?
+                WHERE site_id = %s
                 ORDER BY event_count DESC, page_url ASC
-                LIMIT ?
+                LIMIT %s
                 """,
                 (site_id, limit),
             ).fetchall()
@@ -188,7 +196,7 @@ def list_trend(
                 """
                 SELECT page_url, lcp_ms, timestamp
                 FROM raw_events
-                WHERE site_id = ?
+                WHERE site_id = %s
                 ORDER BY timestamp ASC, id ASC
                 """,
                 (site_id,),
@@ -215,7 +223,7 @@ def normalize_timestamp(value: datetime) -> str:
 
 
 def bucket_trend(
-    rows: list[sqlite3.Row],
+    rows: list[dict[str, Any]],
     limit: int,
     window_seconds: int,
     end_at: datetime | None = None,

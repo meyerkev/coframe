@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
-	_ "modernc.org/sqlite"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 type event struct {
@@ -40,7 +40,7 @@ func main() {
 	prometheus.MustRegister(eventsProcessed, eventsFailed)
 
 	ctx := context.Background()
-	db, err := openDB(env("DATABASE_PATH", "/data/coframe.db"))
+	db, err := openDB(env("DATABASE_URL", "postgresql://coframe:coframe@localhost:5432/coframe"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -79,20 +79,33 @@ func main() {
 }
 
 func openDB(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", path)
+	db, err := sql.Open("pgx", path)
 	if err != nil {
 		return nil, err
 	}
-	_, err = db.Exec(`
-		PRAGMA journal_mode=WAL;
+	if err := initSchema(db); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	if err := db.Ping(); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return db, nil
+}
+
+func initSchema(db *sql.DB) error {
+	stmts := []string{
+		`
 		CREATE TABLE IF NOT EXISTS raw_events (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			id BIGSERIAL PRIMARY KEY,
 			site_id TEXT NOT NULL,
 			page_url TEXT NOT NULL,
 			lcp_ms INTEGER NOT NULL,
 			timestamp TEXT NOT NULL,
 			session_id TEXT NOT NULL
-		);
+		)`,
+		`
 		CREATE TABLE IF NOT EXISTS page_aggregates (
 			site_id TEXT NOT NULL,
 			page_url TEXT NOT NULL,
@@ -101,13 +114,14 @@ func openDB(path string) (*sql.DB, error) {
 			last_seen_timestamp TEXT NOT NULL,
 			updated_at TEXT NOT NULL,
 			PRIMARY KEY (site_id, page_url)
-		);
-	`)
-	if err != nil {
-		_ = db.Close()
-		return nil, err
+		)`,
 	}
-	return db, nil
+	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func redisClient(rawURL string) (*redis.Client, error) {
@@ -130,7 +144,7 @@ func process(ctx context.Context, db *sql.DB, body []byte) error {
 	defer tx.Rollback()
 
 	_, err = tx.ExecContext(ctx,
-		"INSERT INTO raw_events (site_id, page_url, lcp_ms, timestamp, session_id) VALUES (?, ?, ?, ?, ?)",
+		"INSERT INTO raw_events (site_id, page_url, lcp_ms, timestamp, session_id) VALUES ($1, $2, $3, $4, $5)",
 		ev.SiteID, ev.PageURL, ev.LCPMS, ev.Timestamp, ev.SessionID,
 	)
 	if err != nil {
@@ -146,9 +160,9 @@ func process(ctx context.Context, db *sql.DB, body []byte) error {
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO page_aggregates
 			(site_id, page_url, event_count, p75_lcp_ms, last_seen_timestamp, updated_at)
-		SELECT site_id, page_url, COUNT(*), ?, MAX(timestamp), ?
+		SELECT site_id, page_url, COUNT(*), $1, MAX(timestamp), $2
 		FROM raw_events
-		WHERE site_id = ? AND page_url = ?
+		WHERE site_id = $3 AND page_url = $4
 		GROUP BY site_id, page_url
 		ON CONFLICT(site_id, page_url) DO UPDATE SET
 			event_count = excluded.event_count,
@@ -164,7 +178,7 @@ func process(ctx context.Context, db *sql.DB, body []byte) error {
 
 func lcpValues(ctx context.Context, tx *sql.Tx, siteID string, pageURL string) ([]int, error) {
 	rows, err := tx.QueryContext(ctx,
-		"SELECT lcp_ms FROM raw_events WHERE site_id = ? AND page_url = ? ORDER BY lcp_ms ASC",
+		"SELECT lcp_ms FROM raw_events WHERE site_id = $1 AND page_url = $2 ORDER BY lcp_ms ASC",
 		siteID, pageURL,
 	)
 	if err != nil {

@@ -6,19 +6,36 @@ x-service-defaults: &service-defaults
     - app
 
 services:
+  postgres:
+    <<: *service-defaults
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: coframe
+      POSTGRES_PASSWORD: coframe
+      POSTGRES_DB: coframe
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coframe -d coframe"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   api:
     <<: *service-defaults
     build:
       context: ./services/api
     environment:
       REDIS_URL: redis://redis:6379/0
-      DATABASE_PATH: /data/coframe.db
+      DATABASE_URL: postgresql://coframe:coframe@postgres:5432/coframe
       EVENT_QUEUE: page-events
     ports:
       - "8000:8000"
-    volumes:
-      - ./data:/data
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_started
     healthcheck:
@@ -33,13 +50,13 @@ services:
       context: ./services/worker
     environment:
       REDIS_URL: redis://redis:6379/0
-      DATABASE_PATH: /data/coframe.db
+      DATABASE_URL: postgresql://coframe:coframe@postgres:5432/coframe
       EVENT_QUEUE: page-events
     ports:
       - "9101:9101"
-    volumes:
-      - ./data:/data
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_started
 
@@ -81,6 +98,6 @@ networks:
   app:
 
 volumes:
+  pgdata:
   redis-data:
   prometheus-data:
-

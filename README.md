@@ -43,8 +43,9 @@ make down
 ## Services
 
 - `api`: FastAPI service that accepts SDK events, returns site config, exposes aggregate reads, and publishes Prometheus metrics.
-- `worker`: Go service that consumes Redis queue entries and writes rolling aggregates to SQLite.
+- `worker`: Go service that consumes Redis queue entries and writes rolling aggregates to Postgres.
 - `frontend`: static HTML/CSS/JS dashboard served by Nginx.
+- `postgres`: primary datastore for raw events, aggregates, and config.
 - `redis`: queue between API and worker.
 - `prometheus`: metrics collection for API and worker.
 
@@ -61,4 +62,3 @@ No platform code changes are required unless the service needs a new shared depe
 ## Demo Recording
 
 Loom: TODO
-
