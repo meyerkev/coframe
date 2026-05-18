@@ -74,14 +74,32 @@ function renderPages(pages) {
 }
 
 function renderTrend(trendData) {
-  renderMetricChart(trend, trendData, "p75_lcp_ms", "p75 LCP (ms)", 1000, "No recent LCP data in this range.", "ms");
+  renderMetricChart(
+    trend,
+    trendData,
+    "p75_lcp_ms",
+    "p75 LCP (ms)",
+    1000,
+    "No recent LCP data in this range.",
+    "ms",
+    (value) => `${Math.round(value)}`,
+  );
 }
 
 function renderRequestTrend(trendData) {
-  renderMetricChart(requestTrend, trendData, "event_count", "Requests", 1, "No recent request data in this range.", "requests");
+  renderMetricChart(
+    requestTrend,
+    trendData,
+    "event_count",
+    "Requests",
+    1,
+    "No recent request data in this range.",
+    "requests",
+    (value) => formatCount(value),
+  );
 }
 
-function renderMetricChart(container, trendData, metricKey, yAxisLabel, minimumY, emptyMessage, unitLabel) {
+function renderMetricChart(container, trendData, metricKey, yAxisLabel, minimumY, emptyMessage, unitLabel, formatAxisValue) {
   container.innerHTML = "";
   const windows = trendData.windows || [];
   const series = trendData.series || [];
@@ -133,7 +151,7 @@ function renderMetricChart(container, trendData, metricKey, yAxisLabel, minimumY
         <line x1="${margin.left}" x2="${margin.left}" y1="${margin.top}" y2="${height - margin.bottom}"></line>
         ${yTicks.map((tick) => {
           const y = margin.top + chartHeight - (tick / maxY) * chartHeight;
-          return `<text x="${margin.left - 10}" y="${y + 4}" text-anchor="end">${Math.round(tick)}</text>`;
+          return `<text x="${margin.left - 10}" y="${y + 4}" text-anchor="end">${escapeHtml(formatAxisValue(tick))}</text>`;
         }).join("")}
       </g>
       <g class="x-axis">
@@ -239,6 +257,13 @@ function formatBucketLabel(seconds) {
 function niceMax(value) {
   const magnitude = 10 ** Math.floor(Math.log10(value));
   return Math.ceil(value / magnitude) * magnitude;
+}
+
+function formatCount(value) {
+  if (Number.isInteger(value)) {
+    return `${value}`;
+  }
+  return value.toFixed(1);
 }
 
 function seriesColor(label, index) {
