@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import unittest
 
-from app.main import bucket_trend, floor_to_bucket, format_utc
+from app.main import bucket_trend, bucket_trend_by_experiment, floor_to_bucket, format_utc
 
 
 class Row(dict):
@@ -126,6 +126,27 @@ class TrendBucketTest(unittest.TestCase):
         )
         self.assertEqual([window["event_count"] for window in windows], [2, 2, 0])
         self.assertEqual([window["p75_lcp_ms"] for window in windows], [100, 300, 0])
+
+    def test_bucket_trend_by_experiment_groups_unknown_as_its_own_series(self):
+        rows = [
+            Row(timestamp="2026-05-17T16:42:00Z", lcp_ms=100, experiment="hero-copy"),
+            Row(timestamp="2026-05-17T16:42:14Z", lcp_ms=200, experiment=None),
+            Row(timestamp="2026-05-17T16:42:15Z", lcp_ms=300, experiment="hero-copy"),
+            Row(timestamp="2026-05-17T16:42:29Z", lcp_ms=400, experiment=""),
+        ]
+
+        series = bucket_trend_by_experiment(
+            rows,
+            limit=3,
+            window_seconds=15,
+            end_at=datetime(2026, 5, 17, 16, 42, 30, tzinfo=timezone.utc),
+        )
+
+        self.assertEqual([item["experiment"] for item in series], ["unknown", "hero-copy"])
+        self.assertEqual([window["event_count"] for window in series[0]["windows"]], [1, 1, 0])
+        self.assertEqual([window["p75_lcp_ms"] for window in series[0]["windows"]], [200, 400, 0])
+        self.assertEqual([window["event_count"] for window in series[1]["windows"]], [1, 1, 0])
+        self.assertEqual([window["p75_lcp_ms"] for window in series[1]["windows"]], [100, 300, 0])
 
 
 if __name__ == "__main__":
