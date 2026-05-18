@@ -69,9 +69,24 @@
         <div id="trend" class="trend-chart"></div>
       </section>
 
+      <section class="panel trend-panel">
+        <h2>Number of Requests</h2>
+        <div id="request-trend" class="trend-chart"></div>
+      </section>
+
       <section class="panel">
-        <h2>Active Experiments</h2>
-        <ul id="experiments"></ul>
+        <h2>Experiment Latency</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Experiment</th>
+              <th>Events</th>
+              <th>p75 LCP</th>
+              <th>Last seen</th>
+            </tr>
+          </thead>
+          <tbody id="experiments"></tbody>
+        </table>
       </section>
     </main>
 

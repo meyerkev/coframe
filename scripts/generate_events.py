@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 PAGES = ["/", "/pricing", "/docs", "/signup", "/checkout", "/blog/platform"]
 WEIGHTS = [9, 7, 5, 4, 3, 2]
+EXPERIMENTS = ["hero-copy", "checkout-flow"]
 
 
 def main() -> None:
@@ -52,6 +53,7 @@ def build_event(site_id: str, session_prefix: str, index: int) -> dict[str, obje
     return {
         "site_id": site_id,
         "page_url": random.choices(PAGES, weights=WEIGHTS, k=1)[0],
+        "experiment": random.choice(EXPERIMENTS),
         "lcp_ms": random.randint(650, 4200),
         "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "session_id": f"{session_prefix}-{index:04d}",

@@ -193,6 +193,28 @@ th {
   overflow: hidden;
 }
 
+.trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin-top: 8px;
+}
+
+.legend-item {
+  align-items: center;
+  color: #5d6978;
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.legend-swatch {
+  border-radius: 999px;
+  display: inline-block;
+  height: 10px;
+  width: 10px;
+}
+
 .trend-chart svg {
   display: block;
   height: auto;
@@ -218,12 +240,10 @@ th {
 
 .line {
   fill: none;
-  stroke: #2da44e;
   stroke-width: 3;
 }
 
 .points circle {
-  fill: #2da44e;
   stroke: #ffffff;
   stroke-width: 2;
 }

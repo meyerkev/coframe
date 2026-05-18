@@ -4,6 +4,7 @@ const form = document.querySelector("#site-form");
 const siteInput = document.querySelector("#site-id");
 const pagesBody = document.querySelector("#pages");
 const trend = document.querySelector("#trend");
+const requestTrend = document.querySelector("#request-trend");
 const experiments = document.querySelector("#experiments");
 const queueCount = document.querySelector("#queue-count");
 const queueName = document.querySelector("#queue-name");
@@ -36,16 +37,18 @@ bucketButtons.forEach((button) => {
 
 async function refresh(siteId) {
   const trendLimit = Math.max(1, Math.ceil((trendRangeMinutes * 60) / bucketSeconds));
-  const [config, aggregates, trendData, queueStatus] = await Promise.all([
+  const [config, aggregates, trendData, experimentData, queueStatus] = await Promise.all([
     fetch(`${API_BASE}/config/${encodeURIComponent(siteId)}`).then((response) => response.json()),
     fetch(`${API_BASE}/aggregates?site_id=${encodeURIComponent(siteId)}`).then((response) => response.json()),
     fetch(`${API_BASE}/trend?site_id=${encodeURIComponent(siteId)}&limit=${trendLimit}&window_seconds=${bucketSeconds}`).then((response) => response.json()),
+    fetch(`${API_BASE}/experiments?site_id=${encodeURIComponent(siteId)}`).then((response) => response.json()),
     fetch(`${API_BASE}/queue`).then((response) => response.json()),
   ]);
 
   renderPages(aggregates.pages || []);
-  renderTrend(trendData.windows || [], trendData.window_seconds || bucketSeconds);
-  renderExperiments(config.active_experiments || []);
+  renderTrend(trendData);
+  renderRequestTrend(trendData);
+  renderExperiments(experimentData || []);
   renderQueueStatus(queueStatus);
 }
 
@@ -70,15 +73,51 @@ function renderPages(pages) {
   }
 }
 
-function renderTrend(windows, windowSeconds) {
-  trend.innerHTML = "";
-  const populated = windows.filter((window) => window.event_count > 0);
-  const chartWindows = windows.map((window) => ({
-    ...window,
-    p75_lcp_ms: window.p75_lcp_ms ?? 0,
-  }));
-  if (chartWindows.length === 0) {
-    trend.innerHTML = `<div class="empty">No LCP data yet.</div>`;
+function renderTrend(trendData) {
+  renderMetricChart(
+    trend,
+    trendData,
+    "p75_lcp_ms",
+    "p75 LCP (ms)",
+    1000,
+    "No recent LCP data in this range.",
+    "ms",
+    (value) => `${Math.round(value)}`,
+  );
+}
+
+function renderRequestTrend(trendData) {
+  renderMetricChart(
+    requestTrend,
+    trendData,
+    "event_count",
+    "Requests",
+    1,
+    "No recent request data in this range.",
+    "requests",
+    (value) => formatCount(value),
+  );
+}
+
+function renderMetricChart(container, trendData, metricKey, yAxisLabel, minimumY, emptyMessage, unitLabel, formatAxisValue) {
+  container.innerHTML = "";
+  const windows = trendData.windows || [];
+  const series = trendData.series || [];
+  const windowSeconds = trendData.window_seconds || bucketSeconds;
+  const chartSeries = series.length > 0
+    ? series
+    : [{
+        experiment: "unknown",
+        label: "unknown",
+        windows,
+      }];
+
+  const referenceWindows = chartSeries[0]?.windows || windows;
+  const populatedValues = chartSeries.flatMap((item) => (item.windows || [])
+    .filter((window) => window.event_count > 0)
+    .map((window) => window[metricKey] ?? 0));
+  if (referenceWindows.length === 0) {
+    container.innerHTML = `<div class="empty">No data yet.</div>`;
     return;
   }
 
@@ -87,20 +126,21 @@ function renderTrend(windows, windowSeconds) {
   const margin = { top: 14, right: 28, bottom: 44, left: 66 };
   const chartWidth = width - margin.left - margin.right;
   const chartHeight = height - margin.top - margin.bottom;
-  const values = populated.map((window) => window.p75_lcp_ms);
-  const maxY = niceMax(Math.max(...values, 1000));
+  const maxY = niceMax(Math.max(...populatedValues, minimumY));
   const yTicks = [0, maxY / 4, maxY / 2, (maxY * 3) / 4, maxY];
-  const points = chartWindows.map((window, index) => {
-    const x = margin.left + (chartWindows.length === 1 ? chartWidth : (index / (chartWindows.length - 1)) * chartWidth);
-    const y = margin.top + chartHeight - (window.p75_lcp_ms / maxY) * chartHeight;
-    return { ...window, x, y };
+  const xPoints = referenceWindows.map((window, index) => {
+    const x = margin.left + (referenceWindows.length === 1 ? chartWidth : (index / (referenceWindows.length - 1)) * chartWidth);
+    return { ...window, x };
   });
-  const xTicks = pickXTicks(points, 4);
-  const linePath = buildLinePath(points);
+  const xTicks = pickXTicks(xPoints, 4);
   const bucketLabel = `${formatBucketLabel(windowSeconds)} buckets`;
+  const legendItems = chartSeries.map((item, index) => ({
+    label: item.label || item.experiment || "unknown",
+    color: seriesColor(item.label || item.experiment || "unknown", index),
+  }));
 
-  trend.innerHTML = `
-    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="p75 LCP line chart by ${escapeHtml(bucketLabel)}">
+  container.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(yAxisLabel)} by ${escapeHtml(bucketLabel)}">
       <g class="grid-lines">
         ${yTicks.map((tick) => {
           const y = margin.top + chartHeight - (tick / maxY) * chartHeight;
@@ -111,7 +151,7 @@ function renderTrend(windows, windowSeconds) {
         <line x1="${margin.left}" x2="${margin.left}" y1="${margin.top}" y2="${height - margin.bottom}"></line>
         ${yTicks.map((tick) => {
           const y = margin.top + chartHeight - (tick / maxY) * chartHeight;
-          return `<text x="${margin.left - 10}" y="${y + 4}" text-anchor="end">${Math.round(tick)}</text>`;
+          return `<text x="${margin.left - 10}" y="${y + 4}" text-anchor="end">${escapeHtml(formatAxisValue(tick))}</text>`;
         }).join("")}
       </g>
       <g class="x-axis">
@@ -124,29 +164,53 @@ function renderTrend(windows, windowSeconds) {
         `;
         }).join("")}
       </g>
-      <text class="axis-label y-label" x="18" y="${margin.top + chartHeight / 2}" text-anchor="middle" transform="rotate(-90 18 ${margin.top + chartHeight / 2})">p75 LCP (ms)</text>
+      <text class="axis-label y-label" x="18" y="${margin.top + chartHeight / 2}" text-anchor="middle" transform="rotate(-90 18 ${margin.top + chartHeight / 2})">${escapeHtml(yAxisLabel)}</text>
       <text class="axis-label" x="${margin.left + chartWidth / 2}" y="${height - 10}" text-anchor="middle">Time (UTC), ${escapeHtml(bucketLabel)}</text>
-      <path class="line" d="${linePath}"></path>
-      <g class="points">
-        ${points.filter((point) => point.y !== null).map((point) => `
-          <circle cx="${point.x}" cy="${point.y}" r="4">
-            <title>${point.p75_lcp_ms} ms, ${point.event_count} events, ${formatTimestamp(point.window_start)} - ${formatTimestamp(point.window_end)}</title>
-          </circle>
-        `).join("")}
-      </g>
+      ${chartSeries.map((item, index) => {
+        const color = seriesColor(item.label || item.experiment || "unknown", index);
+        const points = (item.windows || []).map((window, pointIndex) => {
+          const x = margin.left + (referenceWindows.length === 1 ? chartWidth : (pointIndex / (referenceWindows.length - 1)) * chartWidth);
+          const value = window[metricKey] ?? 0;
+          const y = margin.top + chartHeight - (value / maxY) * chartHeight;
+          return { ...window, x, y };
+        });
+        return `
+          <path class="line" d="${buildLinePath(points)}" stroke="${color}"></path>
+          <g class="points">
+            ${points.map((point) => `
+              <circle cx="${point.x}" cy="${point.y}" r="4" fill="${color}">
+                <title>${escapeHtml(item.label || item.experiment || "unknown")} · ${point[metricKey] ?? 0} ${unitLabel}, ${formatTimestamp(point.window_start)} - ${formatTimestamp(point.window_end)}</title>
+              </circle>
+            `).join("")}
+          </g>
+        `;
+      }).join("")}
     </svg>
+    <div class="trend-legend">
+      ${legendItems.map((item) => `
+        <div class="legend-item">
+          <span class="legend-swatch" style="background:${item.color}"></span>
+          <span>${escapeHtml(item.label)}</span>
+        </div>
+      `).join("")}
+    </div>
   `;
-  if (populated.length === 0) {
-    trend.insertAdjacentHTML("afterbegin", `<div class="empty chart-note">No recent LCP data in this range.</div>`);
+  if (populatedValues.length === 0) {
+    container.insertAdjacentHTML("afterbegin", `<div class="empty chart-note">${escapeHtml(emptyMessage)}</div>`);
   }
 }
 
 function renderExperiments(items) {
   experiments.innerHTML = "";
   for (const item of items) {
-    const li = document.createElement("li");
-    li.textContent = item;
-    experiments.append(li);
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHtml(item.experiment)}</td>
+      <td>${item.event_count}</td>
+      <td>${item.p75_lcp_ms} ms</td>
+      <td>${escapeHtml(item.last_seen_timestamp || "")}</td>
+    `;
+    experiments.append(row);
   }
 }
 
@@ -193,6 +257,21 @@ function formatBucketLabel(seconds) {
 function niceMax(value) {
   const magnitude = 10 ** Math.floor(Math.log10(value));
   return Math.ceil(value / magnitude) * magnitude;
+}
+
+function formatCount(value) {
+  if (Number.isInteger(value)) {
+    return `${value}`;
+  }
+  return value.toFixed(1);
+}
+
+function seriesColor(label, index) {
+  if (label === "unknown") {
+    return "#6b7280";
+  }
+  const hue = Math.round((index * 137.508) % 360);
+  return `hsl(${hue} 72% 44%)`;
 }
 
 function pickXTicks(points, maxTicks) {
