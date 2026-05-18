@@ -242,7 +242,7 @@ def queue_status() -> QueueStatus:
 @app.get("/trend")
 def list_trend(
     site_id: str = Query(default="demo"),
-    limit: int = Query(default=30, ge=5, le=120),
+    limit: int = Query(default=30, ge=1, le=120),
     window_seconds: int | None = Query(default=None),
     window_minutes: int | None = Query(default=1),
 ) -> dict[str, Any]:

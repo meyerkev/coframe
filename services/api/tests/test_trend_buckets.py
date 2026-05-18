@@ -127,6 +127,29 @@ class TrendBucketTest(unittest.TestCase):
         self.assertEqual([window["event_count"] for window in windows], [2, 2, 0])
         self.assertEqual([window["p75_lcp_ms"] for window in windows], [100, 300, 0])
 
+    def test_bucket_trend_supports_single_window_ranges(self):
+        rows = [
+            Row(timestamp="2026-05-17T17:30:00Z", lcp_ms=100),
+        ]
+
+        windows = bucket_trend(
+            rows,
+            limit=1,
+            window_seconds=3600,
+            end_at=datetime(2026, 5, 17, 17, 59, 59, tzinfo=timezone.utc),
+        )
+
+        self.assertEqual(
+            [window["window_start"] for window in windows],
+            ["2026-05-17T17:00:00Z"],
+        )
+        self.assertEqual(
+            [window["window_end"] for window in windows],
+            ["2026-05-17T17:59:59Z"],
+        )
+        self.assertEqual([window["event_count"] for window in windows], [1])
+        self.assertEqual([window["p75_lcp_ms"] for window in windows], [100])
+
     def test_bucket_trend_by_experiment_groups_unknown_as_its_own_series(self):
         rows = [
             Row(timestamp="2026-05-17T16:42:00Z", lcp_ms=100, experiment="hero-copy"),
