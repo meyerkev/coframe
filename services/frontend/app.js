@@ -9,7 +9,6 @@ const queueCount = document.querySelector("#queue-count");
 const queueName = document.querySelector("#queue-name");
 const rangeButtons = [...document.querySelectorAll("[data-range]")];
 const bucketButtons = [...document.querySelectorAll("[data-bucket]")];
-const SERIES_COLORS = ["#2da44e", "#1f6feb", "#d97706", "#8b5cf6", "#0f766e", "#db2777", "#6b7280"];
 
 let trendRangeMinutes = 30;
 let bucketSeconds = 60;
@@ -107,7 +106,7 @@ function renderTrend(trendData) {
   const bucketLabel = `${formatBucketLabel(windowSeconds)} buckets`;
   const legendItems = chartSeries.map((item, index) => ({
     label: item.label || item.experiment || "unknown",
-    color: SERIES_COLORS[index % SERIES_COLORS.length],
+    color: seriesColor(item.label || item.experiment || "unknown", index),
   }));
 
   trend.innerHTML = `
@@ -138,7 +137,7 @@ function renderTrend(trendData) {
       <text class="axis-label y-label" x="18" y="${margin.top + chartHeight / 2}" text-anchor="middle" transform="rotate(-90 18 ${margin.top + chartHeight / 2})">p75 LCP (ms)</text>
       <text class="axis-label" x="${margin.left + chartWidth / 2}" y="${height - 10}" text-anchor="middle">Time (UTC), ${escapeHtml(bucketLabel)}</text>
       ${chartSeries.map((item, index) => {
-        const color = SERIES_COLORS[index % SERIES_COLORS.length];
+        const color = seriesColor(item.label || item.experiment || "unknown", index);
         const points = (item.windows || []).map((window, pointIndex) => {
           const x = margin.left + (referenceWindows.length === 1 ? chartWidth : (pointIndex / (referenceWindows.length - 1)) * chartWidth);
           const y = margin.top + chartHeight - ((window.p75_lcp_ms ?? 0) / maxY) * chartHeight;
@@ -227,6 +226,14 @@ function formatBucketLabel(seconds) {
 function niceMax(value) {
   const magnitude = 10 ** Math.floor(Math.log10(value));
   return Math.ceil(value / magnitude) * magnitude;
+}
+
+function seriesColor(label, index) {
+  if (label === "unknown") {
+    return "#6b7280";
+  }
+  const hue = Math.round((index * 137.508) % 360);
+  return `hsl(${hue} 72% 44%)`;
 }
 
 function pickXTicks(points, maxTicks) {
